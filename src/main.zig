@@ -116,24 +116,27 @@ fn runService(app: *const App) i32 {
 
     var state = ServiceState{};
     setLastError(&state, "ready");
-    while (!app.sys.programShouldClose()) {
-        const poll = app.sys.serviceEndpointPoll(handle);
-        if (poll < 0) {
-            cleanupService(app, &state, "endpoint");
-            _ = app.sys.serviceEndpointUnregister(handle);
-            return poll;
-        }
-        if (poll > 0) {
-            const rc = handleRequest(app, handle, &state);
-            if (rc < 0) {
+    var service_loop = r4os.ServiceLoop.init(app.sys, handle, .{});
+    while (true) {
+        switch (service_loop.wait(null)) {
+            .requests => |pending| {
+                const rc = service_loop.drain(pending, handleRequest, .{ app, handle, &state });
+                if (rc >= 0) continue;
                 cleanupService(app, &state, "request");
                 _ = app.sys.serviceEndpointUnregister(handle);
                 return rc;
-            }
+            },
+            .idle, .deadline => {},
+            .stop => break,
+            .failure => |raw| {
+                cleanupService(app, &state, "endpoint");
+                _ = app.sys.serviceEndpointUnregister(handle);
+                return raw;
+            },
         }
-        app.sys.sleepTicks(1);
     }
 
+    service_loop.report(service_name);
     cleanupService(app, &state, "service-stop");
     _ = app.sys.serviceEndpointUnregister(handle);
     app.sys.println("UDPSVC stopped cleanly");
