@@ -167,7 +167,7 @@ fn handleRequest(app: *const App, handle: u32, state: *ServiceState) i32 {
         => replyStructuredOperation(app, handle, header.request_id, state, header.client_id, header.op, request),
         else => {
             state.bad_ops +%= 1;
-            return app.sys.serviceEndpointReply(handle, header.request_id, r4os.abi.service_api_result_bad_op, "BADOP");
+            return r4os.app_services.replyIfPending(app.sys, handle, header.request_id, r4os.abi.service_api_result_bad_op, "BADOP");
         },
     };
 }
@@ -178,26 +178,26 @@ fn replyTextStatus(app: *const App, handle: u32, request_id: u32, state: *Servic
     var buf: [512]u8 = .{0} ** 512;
     var w = Writer{ .out = buf[0..] };
     writeStatusText(&w, state, &service_status_reply);
-    return app.sys.serviceEndpointReply(handle, request_id, r4os.abi.service_api_result_ok, w.slice());
+    return r4os.app_services.replyIfPending(app.sys, handle, request_id, r4os.abi.service_api_result_ok, w.slice());
 }
 
 fn replyStatusResult(app: *const App, handle: u32, request_id: u32, state: *ServiceState, owner_id: u32) i32 {
     state.status_requests +%= 1;
     service_status_reply = makeStatus(app, state, owner_id);
     const bytes: [*]const u8 = @ptrCast(&service_status_reply);
-    return app.sys.serviceEndpointReply(handle, request_id, r4os.abi.service_api_result_ok, bytes[0..@sizeOf(r4os.abi.NetServiceUdpStatus)]);
+    return r4os.app_services.replyIfPending(app.sys, handle, request_id, r4os.abi.service_api_result_ok, bytes[0..@sizeOf(r4os.abi.NetServiceUdpStatus)]);
 }
 
 fn replyTextOperation(app: *const App, handle: u32, request_id: u32, state: *ServiceState, owner_id: u32, op: u16, request: []const u8) i32 {
     if (op == 0) {
         state.bad_ops +%= 1;
-        return app.sys.serviceEndpointReply(handle, request_id, r4os.abi.service_api_result_bad_op, "BADOP");
+        return r4os.app_services.replyIfPending(app.sys, handle, request_id, r4os.abi.service_api_result_bad_op, "BADOP");
     }
     const reply = performOperation(app, state, owner_id, op, request, backend_result_data[0..]);
     var buf: [512]u8 = .{0} ** 512;
     var w = Writer{ .out = buf[0..] };
     writeOperationText(&w, &reply.result, reply.data);
-    return app.sys.serviceEndpointReply(handle, request_id, r4os.abi.service_api_result_ok, w.slice());
+    return r4os.app_services.replyIfPending(app.sys, handle, request_id, r4os.abi.service_api_result_ok, w.slice());
 }
 
 fn replyStructuredOperation(app: *const App, handle: u32, request_id: u32, state: *ServiceState, owner_id: u32, op: u16, request: []const u8) i32 {
@@ -207,7 +207,7 @@ fn replyStructuredOperation(app: *const App, handle: u32, request_id: u32, state
     @memcpy(service_reply_payload[0..@sizeOf(r4os.abi.NetServiceUdpResult)], result_bytes[0..@sizeOf(r4os.abi.NetServiceUdpResult)]);
     const data_len: usize = if ((service_result_reply.flags & r4os.abi.net_service_udp_flag_data) != 0) @intCast(service_result_reply.bytes) else 0;
     if (data_len != 0) @memcpy(service_reply_payload[@sizeOf(r4os.abi.NetServiceUdpResult) .. @sizeOf(r4os.abi.NetServiceUdpResult) + data_len], reply.data[0..data_len]);
-    return app.sys.serviceEndpointReply(handle, request_id, r4os.abi.service_api_result_ok, service_reply_payload[0 .. @sizeOf(r4os.abi.NetServiceUdpResult) + data_len]);
+    return r4os.app_services.replyIfPending(app.sys, handle, request_id, r4os.abi.service_api_result_ok, service_reply_payload[0 .. @sizeOf(r4os.abi.NetServiceUdpResult) + data_len]);
 }
 
 fn performOperation(app: *const App, state: *ServiceState, owner_id: u32, op: u16, request: []const u8, data_out: []u8) UdpReply {
