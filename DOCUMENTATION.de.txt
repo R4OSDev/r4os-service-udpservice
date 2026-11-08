@@ -3,6 +3,28 @@
 
 UDPSVC.R4X ist der UDP-Socket-Broker-Service.
 
+Neue Familien-RPCs seit0.90.31 / UDPSVC0.1.6
+--------------------------------------------
+INFO, BIND, SEND, RECV und CLOSE nutzen den bestehenden Endpunkt sowie die
+originalen Socket-/FIFO-Besitzer. Vertrag: Contract/API/NetworkFamily.txt.
+Socket- und Anbieteridentitaet sowie die genaue Aufrufer-Prozessgeneration
+bleiben bis zur wirklichen Freigabe gebunden. Nur waehrend neue Sockets
+existieren, prueft der vorhandene ServiceLoop verlassene Besitzer begrenzt;
+ein ungewisser Status gilt nicht als Prozessende oder Backendquittung.
+
+Der neue RECV konsumiert genau ein Datagramm. Originallaenge und kopierter
+Praefix sind getrennt; Truncated kennzeichnet den verworfenen Rest. Eine
+Kapazitaet0 konsumiert bewusst das ganze Datagramm ohne Datenkopie. Ein leeres
+Datagramm bleibt von einer leeren Queue unterscheidbar. Der alte recv-small-
+Pfad behaelt dagegen seine bisherige nicht konsumierende Fehlermeldung.
+
+INFO prueft den optionalen privaten Backendadapter. Ohne dessen wirkliche
+Faehigkeit bleiben die neuen Transportbits falsch; alte Query1-Aufrufe werden
+weiter ueber den unveraenderten Vertrag bedient. Anfangs verfuegbar sind nur
+IPv4-Wildcard-Bindings mit explizitem Port1..65535. IPv6, implizite Ephemeral-
+Ports, Dualstack, Mapping und nicht vorhandene Interfacewahl bleiben explizit
+nicht unterstuetzt. Kein neuer Kernelstack und keine Anwendungsmigration.
+
 Seit 0.53.21 kann R4NET strukturierte UDP-Serviceoperationen als
 `NetSocketRequest` ueber R4SYS-`ioServiceCall` starten, pollen, warten und
 schliessen. Die normalen R4NET-UDP-Sync-Helfer nutzen intern denselben
